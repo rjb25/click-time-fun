@@ -1,5 +1,5 @@
 //This document ready is here so that the canvas div is not gotten before it exists
-$(document).ready(function(){
+$(function(){
 //This creates, sets up, and applies the canvas element to the page. Side note: It works
 //with some of the IE versions
 var canvasDiv = document.getElementById('canvasDiv');
@@ -17,14 +17,14 @@ $('#canvas').mousedown(function(e){
   var mouseX = e.pageX - this.offsetLeft;
   var mouseY = e.pageY - this.offsetTop;
   paint = true;
-  addClick(e.pageX - this.offsetLeft, e.pageY - this.offsetTop);
+  doAll('addClick', e.pageX - this.offsetLeft, e.pageY - this.offsetTop);
   redraw();
 });
 
 $('#canvas').mousemove(function(e){
   if(paint){
-    addClick(e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true);
-    redraw();
+			doAll('addClick', e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true);
+			doAll('redraw');
   }
 });
 
@@ -40,7 +40,7 @@ $('#canvas').mouseleave(function(e){
 //is because the deleteDrawing might not have been defined when the html is first read
 //due to the deleteDrawing being 
 //wrapped in a way that it is only called when page is loaded.
-$( "#clear" ).click(deleteAllDrawings);
+$( "#clear" ).click(function(){doAll('deleteDrawing');});
 
 var clickX = new Array();
 var clickY = new Array();
@@ -49,6 +49,39 @@ var paint;
 //This function stores the drawing data
 //if you store with dragging true redraw will interpet the two click points as a line
 //however if dragging is false redraw will interpret the x and y as a point
+var authenticatedFuncs = {deleteDrawing : deleteDrawing, log : log, addClick : addClick, redraw : redraw}
+function isAuthenticated(funcName){
+		if(funcName in authenticatedFuncs){
+				return true;
+		}else{
+				return false;
+		}
+}
+
+function log(...params){
+		if(console){
+			console.log.apply(console, params);
+		}
+}
+//doAll could be a combination of doThis and doOthers, 
+//however that would end up making the code longer and a little more complex due to the use of apply
+function doAll(func, ...params){
+		if(isAuthenticated(func)){
+		authenticatedFuncs[func].apply(null, params);
+		socket.emit('message', {func: func, params: params})
+		}else{
+				console.log('You attempted to use an unauthenticated function on all clients.');
+		}
+}
+
+function doOthers(func, ...params){
+		if(isAuthenticated(func)){
+		socket.emit('message', {func: func, params: params})
+		}else{
+				console.log('You attempted to use an unauthenticated function on other clients.');
+		}
+}
+
 function addClick(x, y, dragging)
 {
   clickX.push(x);
@@ -58,10 +91,6 @@ function addClick(x, y, dragging)
 //seperate function for clearing the canvas
 function clearCanvas(){
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
-}
-function deleteAllDrawings(){
-		deleteDrawing();
-	socket.emit('message', 'deleteDrawing');
 }
 
 function deleteDrawing(){
@@ -92,7 +121,7 @@ function redraw(){
      context.stroke();
   }
 }
-var messaging = "heyo";
+
 var base = 'http://clicktime.herokuapp.com:80/rooms/';
 var roomName = 'Jason';    // Replace this with your own room name
 
@@ -105,25 +134,19 @@ var socket = io.connect(base + roomName);
  */
 socket.on('welcome', function () {
     // Connection is established, start using the socket
-    socket.emit('message', 'i have arrived');
+    socket.emit('message', {func: 'log', params: ['Another Drawer Has Joined']});
 });
-
+   //Would have used 'function' type, but is not supported by provided server
 socket.on('message', function (data) {
     // The 'message' event is emitted whenever another client sends a message
     // Messages are automatically broadcasted to everyone in the room
-		switch(data) {
-				//could make allowed functions array
-				case 'i have arrived':
-	 			console.log('i have arrived');
-				break;
-				case 'deleteDrawing':
-				deleteDrawing();
-	//clearCanvas();
-console.log(messaging);	
-				break;
-				default:
-				console.log('Nonsense');
+		if(isAuthenticated(data.func)){
+			authenticatedFuncs[data.func].apply(null, data.params);
+		}else{
+			console.log
+			socket.emit('error', 'The attempted function call' + data.func + 'is not authenticated');
 		}
+
 });
 
 socket.on('heartbeat', function () {
@@ -133,7 +156,8 @@ socket.on('heartbeat', function () {
 
 socket.on('error', function (err) {
     // Sometimes things go wrong!
-    var type = err.type;    // This is the type of error that occurred
-    var message = err.message;    // This is a friendly message that should describe the error
+		var type = err.type;    // This is the type of error that occurred
+		var message = err.message;
+		console.log(type, message);
 });
 });//end: on page load
