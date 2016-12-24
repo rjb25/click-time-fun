@@ -13,17 +13,25 @@ if(typeof G_vmlCanvasManager != 'undefined') {
 }
 context = canvas.getContext("2d");
 
+var myId = Math.ceil(Math.random() * 10000) + "id" +Date.now();
+var drawState = {};
+var myColor = '#'+Math.random().toString(16).substr(-6); 
+
+function addDrawer(id){
+		drawState[id] = {clickX : [], clickY : [], clickDrag : [], colors : []};
+}
+
 $('#canvas').mousedown(function(e){
   var mouseX = e.pageX - this.offsetLeft;
   var mouseY = e.pageY - this.offsetTop;
   paint = true;
-  doAll('addClick', e.pageX - this.offsetLeft, e.pageY - this.offsetTop);
-  redraw();
+  doAll('addPaint', myId, e.pageX - this.offsetLeft, e.pageY - this.offsetTop, false, myColor);
+  doAll('redraw');
 });
 
 $('#canvas').mousemove(function(e){
   if(paint){
-			doAll('addClick', e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true);
+			doAll('addPaint', myId, e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true, myColor);
 			doAll('redraw');
   }
 });
@@ -41,15 +49,11 @@ $('#canvas').mouseleave(function(e){
 //due to the deleteDrawing being 
 //wrapped in a way that it is only called when page is loaded.
 $( "#clear" ).click(function(){doAll('deleteDrawing');});
-
-var clickX = new Array();
-var clickY = new Array();
-var clickDrag = new Array();
 var paint;
 //This function stores the drawing data
 //if you store with dragging true redraw will interpet the two click points as a line
 //however if dragging is false redraw will interpret the x and y as a point
-var authenticatedFuncs = {deleteDrawing : deleteDrawing, log : log, addClick : addClick, redraw : redraw}
+var authenticatedFuncs = {deleteDrawing : deleteDrawing, log : log, addPaint : addPaint, redraw : redraw, addDrawer : addDrawer};
 function isAuthenticated(funcName){
 		if(funcName in authenticatedFuncs){
 				return true;
@@ -82,11 +86,13 @@ function doOthers(func, ...params){
 		}
 }
 
-function addClick(x, y, dragging)
+function addPaint(id, x, y, dragging, color)
 {
-  clickX.push(x);
-  clickY.push(y);
-  clickDrag.push(dragging);
+  drawState[id].clickX.push(x);
+  drawState[id].clickY.push(y);
+  drawState[id].clickDrag.push(dragging);
+	drawState[id].colors.push(color);
+
 }
 //seperate function for clearing the canvas
 function clearCanvas(){
@@ -99,14 +105,17 @@ clickY.length = 0;
 clickDrag.length = 0;
 clearCanvas();
 }
-
+//array object called drawings of objects with their keys as unique keys containing their colors and strokes
+//This is as close as one can get to a unique id without having to talk to other clients nor being able to have access to the server code.
 function redraw(){
 	clearCanvas();
-  
-  context.strokeStyle = "#df4b26";
+  context.strokeStyle = myColor;
   context.lineJoin = "round";
   context.lineWidth = 5;
-			
+	for(var id in drawState){		
+			clickX = drawState[id].clickX;
+			clickY = drawState[id].clickY;
+			clickDrag = drawState[id].clickDrag;
   for(var i=0; i < clickX.length; i++) {		
     context.beginPath();
     if(clickDrag[i] && i){
@@ -120,6 +129,7 @@ function redraw(){
      context.closePath();
      context.stroke();
   }
+	}
 }
 
 var base = 'http://clicktime.herokuapp.com:80/rooms/';
@@ -134,7 +144,10 @@ var socket = io.connect(base + roomName);
  */
 socket.on('welcome', function () {
     // Connection is established, start using the socket
-    socket.emit('message', {func: 'log', params: ['Another Drawer Has Joined']});
+    doOthers('log','Another Drawer Has Joined');
+		//ERROR not getting ids of others in the room.
+		//Only new ones are added to list, current is not added to new
+		doAll('addDrawer', myId);
 });
    //Would have used 'function' type, but is not supported by provided server
 socket.on('message', function (data) {
@@ -143,8 +156,7 @@ socket.on('message', function (data) {
 		if(isAuthenticated(data.func)){
 			authenticatedFuncs[data.func].apply(null, data.params);
 		}else{
-			console.log
-			socket.emit('error', 'The attempted function call' + data.func + 'is not authenticated');
+			console.log("A non authenticated function was sent to be executed");
 		}
 
 });
