@@ -17,22 +17,27 @@ var myId = Math.ceil(Math.random() * 10000) + "id" +Date.now();
 var drawState = {};
 var myColor = '#'+Math.random().toString(16).substr(-6); 
 
-function addDrawer(id){
+function addDrawer(id, sendToId){
+		if(sendToId){
+    doTo([id], 'addDrawer', myId);
+		}else{
+		console.log('Drawer', id);
 		drawState[id] = {clickX : [], clickY : [], clickDrag : [], colors : []};
+		}
 }
 
 $('#canvas').mousedown(function(e){
   var mouseX = e.pageX - this.offsetLeft;
   var mouseY = e.pageY - this.offsetTop;
   paint = true;
-  doAll('addPaint', myId, e.pageX - this.offsetLeft, e.pageY - this.offsetTop, false, myColor);
-  doAll('redraw');
+  doTo(['all'], 'addPaint', myId, e.pageX - this.offsetLeft, e.pageY - this.offsetTop, false, myColor);
+  doTo(['all'], 'redraw');
 });
 
 $('#canvas').mousemove(function(e){
   if(paint){
-			doAll('addPaint', myId, e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true, myColor);
-			doAll('redraw');
+			doTo(['all'], 'addPaint', myId, e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true, myColor);
+			doTo(['all'], 'redraw');
   }
 });
 
@@ -48,12 +53,22 @@ $('#canvas').mouseleave(function(e){
 //is because the deleteDrawing might not have been defined when the html is first read
 //due to the deleteDrawing being 
 //wrapped in a way that it is only called when page is loaded.
-$( "#clear" ).click(function(){doAll('deleteDrawing');});
+$( "#clear" ).click(function(){doTo(['all'], 'deleteDrawing');});
 var paint;
 //This function stores the drawing data
 //if you store with dragging true redraw will interpet the two click points as a line
 //however if dragging is false redraw will interpret the x and y as a point
 var authenticatedFuncs = {deleteDrawing : deleteDrawing, log : log, addPaint : addPaint, redraw : redraw, addDrawer : addDrawer};
+function isForMe(target){
+		if($.inArray("all", target)){
+			return true;	
+		}else if($.inArray(myId, target)){
+				return true;
+		}else{
+				return false;
+		}
+}
+
 function isAuthenticated(funcName){
 		if(funcName in authenticatedFuncs){
 				return true;
@@ -67,22 +82,19 @@ function log(...params){
 			console.log.apply(console, params);
 		}
 }
-//doAll could be a combination of doThis and doOthers, 
-//however that would end up making the code longer and a little more complex due to the use of apply
-function doAll(func, ...params){
-		if(isAuthenticated(func)){
-		authenticatedFuncs[func].apply(null, params);
-		socket.emit('message', {func: func, params: params})
-		}else{
-				console.log('You attempted to use an unauthenticated function on all clients.');
-		}
-}
 
-function doOthers(func, ...params){
+function doTo(who, func, ...params){
 		if(isAuthenticated(func)){
-		socket.emit('message', {func: func, params: params})
+		if(who.includes('all')){
+					authenticatedFuncs[func].apply(null, params);
+					socket.emit('message', {target: ['all'], func: func, params: params});
+		}else if(who.includes('others')){
+					socket.emit('message', {target: ['all'], func: func, params: params});
 		}else{
-				console.log('You attempted to use an unauthenticated function on other clients.');
+					socket.emit('message', {target: who, func: func, params: params});
+		}
+		}else{
+				console.log('You attempted to use an unauthenticated function.');
 		}
 }
 
@@ -94,12 +106,13 @@ function addPaint(id, x, y, dragging, color)
 	drawState[id].colors.push(color);
 
 }
+
 //seperate function for clearing the canvas
 function clearCanvas(){
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
 }
 
-function deleteDrawing(){
+function deleteDrawing(who){
 clickX.length = 0;
 clickY.length = 0;
 clickDrag.length = 0;
@@ -144,17 +157,22 @@ var socket = io.connect(base + roomName);
  */
 socket.on('welcome', function () {
     // Connection is established, start using the socket
-    doOthers('log','Another Drawer Has Joined');
-		//ERROR not getting ids of others in the room.
-		//Only new ones are added to list, current is not added to new
-		doAll('addDrawer', myId);
+		// Sends a console message to the other users in the room
+    doTo(["others"], 'log','Another Drawer Has Joined');
+		//Makes the other users send their ids to my id.
+		//Those ids are used to set my drawers list
+    doTo(["others"], 'addDrawer', myId, 'To the given id');
+		//Adds my id to drawers for other users, and myself.
+		doTo(["all"], 'addDrawer', myId);
 });
    //Would have used 'function' type, but is not supported by provided server
 socket.on('message', function (data) {
     // The 'message' event is emitted whenever another client sends a message
     // Messages are automatically broadcasted to everyone in the room
 		if(isAuthenticated(data.func)){
-			authenticatedFuncs[data.func].apply(null, data.params);
+				if(isForMe(data.target)){
+					authenticatedFuncs[data.func].apply(null, data.params);
+				}
 		}else{
 			console.log("A non authenticated function was sent to be executed");
 		}
