@@ -60,9 +60,9 @@ var paint;
 //however if dragging is false redraw will interpret the x and y as a point
 var authenticatedFuncs = {deleteDrawing : deleteDrawing, log : log, addPaint : addPaint, redraw : redraw, addDrawer : addDrawer};
 function isForMe(target){
-		if($.inArray("all", target)){
+		if(target.includes("all")){
 			return true;	
-		}else if($.inArray(myId, target)){
+		}else if(target.includes(myId)){
 				return true;
 		}else{
 				return false;
@@ -112,24 +112,28 @@ function clearCanvas(){
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
 }
 
-function deleteDrawing(who){
-clickX.length = 0;
-clickY.length = 0;
-clickDrag.length = 0;
+function deleteDrawing(){
+		for(var id in drawState){
+  		drawState[id].clickX.length = 0;
+  		drawState[id].clickY.length = 0;
+  		drawState[id].clickDrag.length = 0;
+			drawState[id].colors.length = 0;
+		}
 clearCanvas();
 }
 //array object called drawings of objects with their keys as unique keys containing their colors and strokes
 //This is as close as one can get to a unique id without having to talk to other clients nor being able to have access to the server code.
 function redraw(){
 	clearCanvas();
-  context.strokeStyle = myColor;
   context.lineJoin = "round";
   context.lineWidth = 5;
 	for(var id in drawState){		
+  		colors = drawState[id].colors;
 			clickX = drawState[id].clickX;
 			clickY = drawState[id].clickY;
 			clickDrag = drawState[id].clickDrag;
   for(var i=0; i < clickX.length; i++) {		
+		context.strokeStyle = colors[i];
     context.beginPath();
     if(clickDrag[i] && i){
       context.moveTo(clickX[i-1], clickY[i-1]);
