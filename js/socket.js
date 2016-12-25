@@ -11,9 +11,9 @@ canvasDiv.appendChild(canvas);
 if(typeof G_vmlCanvasManager != 'undefined') {
 			canvas = G_vmlCanvasManager.initElement(canvas);
 }
-context = canvas.getContext("2d");
+context = canvas.getContext('2d');
 
-var myId = Math.ceil(Math.random() * 10000) + "id" +Date.now();
+var myId = Math.ceil(Math.random() * 10000) + 'id' +Date.now();
 
 $('#canvas').mousedown(function(e){
   var mouseX = e.pageX - this.offsetLeft;
@@ -46,14 +46,34 @@ $('#canvas').mouseleave(function(e){
 //is because the deleteDrawing might not have been defined when the html is first read
 //due to the deleteDrawing being 
 //wrapped in a way that it is only called when page is loaded.
-$( "#clear" ).click(function(){doTo(['all'], 'clearCanvas');});
+$( '#clear' ).click(function(){doTo(['all'], 'clearCanvas');});
+$( '#changeColor' ).click(changeColor);
+
+function changeColor(){
+		newColor = $('#color').val();
+		if(validateCssColour(newColor)){
+		myColor = newColor;
+		}else{
+			window.alert("Invalid Color Entry");
+		}
+}
+//Thanks to: http://stackoverflow.com/questions/6386090/validating-css-color-names
+var validateCssColour = function(colour){
+    var rgb = $('<div style="color:#28e32a">');     // Use a non standard dummy colour to ease checking for edge cases
+    var valid_rgb = "rgb(40, 227, 42)";
+    rgb.css("color", colour);
+    if(rgb.css('color') == valid_rgb && colour != ':#28e32a' && colour.replace(/ /g,"") != valid_rgb.replace(/ /g,""))
+        return false;
+    else
+        return true;
+};
 var paint;
 //This function stores the drawing data
 //if you store with dragging true redraw will interpet the two click points as a line
 //however if dragging is false redraw will interpret the x and y as a point
 var authenticatedFuncs = {clearCanvas: clearCanvas, log : log, draw : draw};
 function isForMe(target){
-		if(target.includes("all")){
+		if(target.includes('all')){
 			return true;	
 		}else if(target.includes(myId)){
 				return true;
@@ -105,7 +125,7 @@ function clearCanvas(){
 //This is as close as one can get to a unique id without having to talk to other clients nor being able to have access to the server code.
 //using redraw with storing was getting performance issues, so I moved to a simple draw function
 function draw(color, startX, startY, endX, endY){
-  context.lineJoin = "round";
+  context.lineJoin = 'round';
   context.lineWidth = 5;
 		context.strokeStyle = color;
     context.beginPath();
@@ -128,7 +148,7 @@ var socket = io.connect(base + roomName);
 socket.on('welcome', function () {
     // Connection is established, start using the socket
 		// Sends a console message to the other users in the room
-    doTo(["others"], 'log','Another Drawer Has Joined');
+    doTo(['others'], 'log','Another Drawer Has Joined');
 });
    //Would have used 'function' type, but is not supported by provided server
 socket.on('message', function (data) {
@@ -139,7 +159,7 @@ socket.on('message', function (data) {
 					authenticatedFuncs[data.func].apply(null, data.params);
 				}
 		}else{
-			console.log("A non authenticated function was sent to be executed");
+			console.log('A non authenticated function was sent to be executed');
 		}
 
 });
